@@ -1,3 +1,6 @@
+const userModel = require("../users/users-model");
+const bcrypt = require("bcryptjs");
+
 /*
   Kullanıcının sunucuda kayıtlı bir oturumu yoksa
 
@@ -6,8 +9,15 @@
     "message": "Geçemezsiniz!"
   }
 */
-function sinirli() {
-
+function sinirli(req, res, next) {
+  try {
+    if (req.session.user) {
+      return next();
+    }
+    res.status(401).json({ message: "Geçemezsiniz!" });
+  } catch (error) {
+    next(error);
+  }
 }
 
 /*
@@ -18,8 +28,17 @@ function sinirli() {
     "message": "Username kullaniliyor"
   }
 */
-function usernameBostami() {
-
+async function usernameBostami(req, res, next) {
+  try {
+    const { username } = req.body;
+    const user = await userModel.goreBul({ username });
+    if (user && user.length > 0) {
+      return res.status(422).json({ message: "Username kullaniliyor" });
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
 }
 
 /*
@@ -30,8 +49,20 @@ function usernameBostami() {
     "message": "Geçersiz kriter"
   }
 */
-function usernameVarmi() {
+async function usernameVarmi(req, res, next) {
+  try {
+    const { username, password } = req.body;
+    const [user] = await userModel.goreBul({ username });
 
+    if (!user || !bcrypt.compareSync(password, user.password)) {
+      return res.status(401).json({ message: "Geçersiz kriter" });
+    }
+    req.currentUser = user;
+
+    next();
+  } catch (error) {
+    next(error);
+  }
 }
 
 /*
@@ -42,8 +73,26 @@ function usernameVarmi() {
     "message": "Şifre 3 karakterden fazla olmalı"
   }
 */
-function sifreGecerlimi() {
+function sifreGecerlimi(req, res, next) {
+  try {
+    const { password } = req.body;
 
+    if (!password || password.length < 3) {
+      return res
+        .status(422)
+        .json({ message: "Şifre 3 karakterden fazla olmalı" });
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
 }
 
 // Diğer modüllerde kullanılabilmesi için fonksiyonları "exports" nesnesine eklemeyi unutmayın.
+module.exports = {
+  sinirli,
+  usernameBostami,
+  usernameVarmi,
+  sifreGecerlimi,
+};
